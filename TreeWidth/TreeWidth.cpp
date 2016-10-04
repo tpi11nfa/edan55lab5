@@ -7,15 +7,26 @@
 #include <sstream>
 #include <iostream>
 #include <unordered_set>
+#include <deque>
 
 using namespace std;
-typedef unordered_set<size_t> bag;
+
+bool isIndependent(const vector<vector<size_t> >& G, vector<size_t> set) {
+	for (size_t t : set) {
+		for (size_t s : G[t]) {
+			if (find(set.begin(), set.end(), s) != set.end()) {
+				return false;
+			}
+		}
+	}
+	return true;
+}
 
 class Node {
 private:
 	vector<size_t> children;
-	bag piece;
-	vector<pair<size_t, vector<size_t> > > subsets;
+	unordered_set<size_t> piece;
+	vector<vector<size_t> > subsets;
 
 public:
 	Node() {}
@@ -27,7 +38,68 @@ public:
 	const vector<size_t>& getChildren() const {
 		return children;
 	}
+
+	void addPiece(unordered_set<size_t> b) {
+		piece = b;
+	}
+
+	size_t nChildren() const {
+		return children.size();
+	}
+
+	void generateISHelp(const vector<vector<size_t> >& G, vector<vector<size_t> > queue) {
+		auto it = piece.begin();
+		while (++it != piece.end()) {
+			vector<vector<size_t> > newQueue;
+			size_t x = *it;
+			while (!queue.empty()) {
+				vector<size_t> v = queue.back();
+				queue.pop_back();
+				if (isIndependent(G, v)) {
+					subsets.push_back(v);
+				}
+
+				if (v.back() == *--piece.end()) {
+					continue;
+				}
+				vector<size_t> v2 = v;
+				
+				v2.pop_back();
+				v2.push_back(x);
+				v.push_back(x);
+				newQueue.push_back(v2);
+				newQueue.push_back(v);
+			}
+			queue = newQueue;
+		}
+		while (!queue.empty()) {
+			vector<size_t> v = queue.back();
+			queue.pop_back();
+			if (isIndependent(G, v)) {
+				subsets.push_back(v);
+			}
+		}
+	}
+
+	void generateIS(const vector<vector<size_t> >& G) {
+		vector<vector<size_t> > queue;
+		queue.push_back(vector<size_t> {*piece.begin()});
+		return generateISHelp(G, queue);
+	}
 };
+
+vector<size_t> MaxIndependentSet(const vector<vector<size_t> >& G, vector<Node>& TD, size_t currentNode) {
+	vector<size_t> result;
+	if (TD[currentNode].nChildren() == 0) {
+		//Leaf 
+		TD[currentNode].generateIS(G);
+	}
+	else {
+		//Recursion 10.18
+
+		return result;
+	}	
+}
 
 int main()
 {
@@ -74,7 +146,7 @@ int main()
 		}
 	}
 
-	vector<bag> bags(nBags + 1);
+	vector<unordered_set<size_t> > bags(nBags + 1);
 	vector<vector<size_t> > T(nBags + 1);
 	while (getline(ifstd, line)) {
 		if (line[0] == 'c') {
@@ -98,30 +170,35 @@ int main()
 		}
 	}
 
-	size_t i = 1;
-	while (T[i].size() > 1) {
-		++i;
+	size_t root = 1;
+	while (T[root].size() > 1) {
+		++root;
 	}
 
-	size_t nVisited = 0;
-	vector<bool>hasVisited(vector<bool>(nBags, false));
-	vector<size_t> curr = T[i];
-	vector<size_t> queue;
-	while (nVisited < nBags)
+	vector<bool> hasVisited(nBags + 1, false);
+	size_t curr = root;
+	deque<size_t> queue;
+	vector<Node> TD(nBags + 1);
+	queue.push_back(curr);
+
+	while (!queue.empty())
 	{
-		for (size_t q : curr)
+		curr = queue.front();
+		queue.pop_front();
+		hasVisited[curr] = true;
+		Node n;
+		n.addPiece(bags[curr]);
+		for (size_t q : T[curr])
 		{
 			if (!hasVisited[q]) {
-				hasVisited[q] = true;
-				++nVisited;
 				queue.push_back(q);
+				n.appendChild(q);
 			}
 		}
-		curr = T[queue.back()];
-		queue.pop_back();
+		TD[curr] = n;
 	}
 
-
+	MaxIndependentSet(G, TD, root);
 
     return 0;
 }
