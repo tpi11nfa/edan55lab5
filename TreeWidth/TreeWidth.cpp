@@ -26,10 +26,14 @@ class Node {
 private:
 	vector<size_t> children;
 	unordered_set<size_t> piece;
-	vector<vector<size_t> > subsets;
+	vector<unordered_set<size_t> > subsets;
+	const vector<vector<size_t> >* G;
+	vector<size_t> subsetValues;
 
 public:
-	Node() {}
+	Node(const vector<vector<size_t> >* G) : G(G) {}
+
+	Node() : G(NULL) {}
 
 	void appendChild(size_t child) {
 		children.push_back(child);
@@ -41,13 +45,16 @@ public:
 
 	void addPiece(unordered_set<size_t> b) {
 		piece = b;
+		vector<vector<size_t> > queue;
+		queue.push_back(vector<size_t> {*piece.begin()});
+		generateAllIS(queue);
 	}
 
 	size_t nChildren() const {
 		return children.size();
-	}
+}	
 
-	void generateISHelp(const vector<vector<size_t> >& G, vector<vector<size_t> > queue) {
+	void generateAllIS(vector<vector<size_t> > queue) {
 		auto it = piece.begin();
 		while (++it != piece.end()) {
 			vector<vector<size_t> > newQueue;
@@ -55,8 +62,9 @@ public:
 			while (!queue.empty()) {
 				vector<size_t> v = queue.back();
 				queue.pop_back();
-				if (isIndependent(G, v)) {
-					subsets.push_back(v);
+				if (isIndependent(*G, v)) {
+					unordered_set<size_t> s(v.begin(), v.end());
+					subsets.push_back(s);
 				}
 
 				if (v.back() == *--piece.end()) {
@@ -75,28 +83,120 @@ public:
 		while (!queue.empty()) {
 			vector<size_t> v = queue.back();
 			queue.pop_back();
-			if (isIndependent(G, v)) {
-				subsets.push_back(v);
+			if (isIndependent(*G, v)) {
+				unordered_set<size_t> s(v.begin(), v.end());
+				subsets.push_back(s);
 			}
 		}
 	}
 
-	void generateIS(const vector<vector<size_t> >& G) {
-		vector<vector<size_t> > queue;
-		queue.push_back(vector<size_t> {*piece.begin()});
-		return generateISHelp(G, queue);
+	vector<unordered_set<size_t> > getSubsets() {
+		return subsets;
+	}
+
+	vector<size_t> generateValuesLeaf() {
+		if (valuesGenerated()) {
+			return subsetValues;
+		}
+		vector<size_t> subsetValues;
+		for (unordered_set<size_t> v : subsets) {
+			subsetValues.push_back(v.size());
+		}
+		return subsetValues;
+	}
+
+	void pushBackValue(size_t val, const unordered_set<size_t>& toAdd) {
+		subsetValues.push_back(val);
+		subsets[subsetValues.size() - 1].insert(toAdd.begin(), toAdd.end());
+	}
+
+	bool valuesGenerated() {
+		return subsetValues.size() == subsets.size();
+	}
+
+	vector<size_t> getValues() {
+		return subsetValues;
+	}
+
+	unordered_set<size_t> getPiece() {
+		return piece;
 	}
 };
 
-vector<size_t> MaxIndependentSet(const vector<vector<size_t> >& G, vector<Node>& TD, size_t currentNode) {
-	vector<size_t> result;
-	if (TD[currentNode].nChildren() == 0) {
+bool SubsetIsValid(const unordered_set<size_t>& U_i, const unordered_set<size_t>& U, const unordered_set<size_t>& V_t, const unordered_set<size_t>& V_i) {
+	unordered_set<size_t> intersection1, intersection2;
+	for (size_t s : U_i) {
+		if (V_t.find(s) != V_t.end()) {
+			intersection1.insert(s);
+		}
+	}
+	for (size_t s : U) {
+		if (V_i.find(s) != V_i.end()) {
+			intersection2.insert(s);
+		}
+	}
+	if (intersection1.size() != intersection2.size()) {
+		return false;
+	}
+	for (size_t s : intersection1) {
+		if (intersection2.find(s) == intersection2.end()) {
+			return false;
+		}
+	}
+	return true;
+}
+
+pair<vector<unordered_set<size_t> >, vector<size_t> > MaxIndependentSet(vector<Node>& TD, size_t currentNodeIx) {
+	Node& currentNode = TD[currentNodeIx];
+	if (currentNode.nChildren() == 0) {
 		//Leaf 
-		TD[currentNode].generateIS(G);
+		vector<size_t> subsetValues = currentNode.generateValuesLeaf();
+		vector<unordered_set<size_t> > independentSets = currentNode.getSubsets();
+		return make_pair(independentSets, subsetValues);
 	}
 	else {
-		//Recursion 10.18
-
+		if (currentNode.valuesGenerated()) {
+			return make_pair(currentNode.getSubsets(), currentNode.getValues());
+		}
+		vector<unordered_set<size_t> > independentSets = currentNode.getSubsets();
+		pair<vector<unordered_set<size_t> >, vector<size_t> > result;
+		// for all indep sets in Node
+		for (unordered_set<size_t> U : independentSets) {
+			size_t ft_u = U.size();
+			unordered_set<size_t> bestestSet;
+			//sum_{i=1}^d
+			for (size_t child : currentNode.getChildren()) {
+				pair<vector<unordered_set<size_t> >, vector<size_t> > subResult = MaxIndependentSet(TD, child);
+				size_t max_f = 0;
+				unordered_set<size_t> bestSet;
+				//max{ft - w}
+				for (int k = 0; k < subResult.first.size(); ++k) {
+					size_t f_t = subResult.second[k];
+					unordered_set<size_t> U_i = subResult.first[k];
+					if (!SubsetIsValid(U_i, U, currentNode.getPiece(), TD[child].getPiece())) {
+						continue;
+					}
+					//Intersection of U_i and U
+					size_t intersectionSize = U_i.size();
+					for (size_t s : U_i) {
+						if (U.find(s) == U.end()) {
+							--intersectionSize;
+						}
+					}
+					size_t value = f_t - intersectionSize;
+					if (value > max_f) {
+						max_f = value;
+						bestSet = U_i;
+					}
+				}
+				ft_u += max_f;
+				bestestSet.insert(bestSet.begin(), bestSet.end());
+			}
+			currentNode.pushBackValue(ft_u, bestestSet);
+			bestestSet.insert(U.begin(), U.end());
+			result.first.push_back(bestestSet);
+			result.second.push_back(ft_u);
+		}
 		return result;
 	}	
 }
@@ -104,8 +204,9 @@ vector<size_t> MaxIndependentSet(const vector<vector<size_t> >& G, vector<Node>&
 int main()
 {
 	string filepath = "C:\\Users\\biz\\Documents\\Visual Studio 2015\\Projects\\Treewidth\\data\\";
-	ifstream ifsgr(filepath + "web4.gr");
-	ifstream ifstd(filepath + "web4.td");
+	string filename = "TruncatedTetrahedralGraph";
+	ifstream ifsgr(filepath + filename + ".gr");
+	ifstream ifstd(filepath + filename + ".td");
 
 	string line;
 	size_t nNodes, nEdges;
@@ -186,7 +287,7 @@ int main()
 		curr = queue.front();
 		queue.pop_front();
 		hasVisited[curr] = true;
-		Node n;
+		Node n(&G);
 		n.addPiece(bags[curr]);
 		for (size_t q : T[curr])
 		{
@@ -198,7 +299,15 @@ int main()
 		TD[curr] = n;
 	}
 
-	MaxIndependentSet(G, TD, root);
+	pair<vector<unordered_set<size_t> >, vector<size_t> > maxIS = MaxIndependentSet(TD, root);
+	for (size_t k = 0; k < maxIS.first.size(); ++k) {
+		cout << "IS size: " << maxIS.second[k] << endl;
+		for (size_t s : maxIS.first[k]) {
+			cout << s << " ";
+		}
+		cout << endl;
+	}
+	
 
     return 0;
 }
