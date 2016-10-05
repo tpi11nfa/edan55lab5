@@ -55,6 +55,7 @@ public:
 }	
 
 	void generateAllIS(vector<vector<size_t> > queue) {
+		subsets.push_back(unordered_set<size_t>());
 		auto it = piece.begin();
 		while (++it != piece.end()) {
 			vector<vector<size_t> > newQueue;
@@ -204,7 +205,21 @@ pair<vector<unordered_set<size_t> >, vector<size_t> > MaxIndependentSet(vector<N
 int main()
 {
 	string filepath = "C:\\Users\\biz\\Documents\\Visual Studio 2015\\Projects\\Treewidth\\data\\";
-	string filename = "TruncatedTetrahedralGraph";
+	//string filename = "StarGraph_100";
+	//string filename = "TruncatedTetrahedralGraph";
+	//string filename = "BalancedTree_3_5";
+	//string filename = "CompleteGraph_15";
+	//string filename = "CycleGraph_100";
+	//string filename = "DorogovtsevGoltsevMendesGraph";
+	//string filename = "EllinghamHorton54Graph";
+	//string filename = "DoubleStarSnark";
+	//string filename = "FibonacciTree_10";
+	//string filename = "HouseGraph";
+	//string filename = "HouseXGraph";
+	//string filename = "KrackhardtKiteGraph";
+	//string filename = "NonisotropicOrthogonalPolarGraph_3_5";
+	//string filename = "PappusGraph";
+	string filename = "WorldMap";
 	ifstream ifsgr(filepath + filename + ".gr");
 	ifstream ifstd(filepath + filename + ".td");
 
@@ -300,14 +315,29 @@ int main()
 	}
 
 	pair<vector<unordered_set<size_t> >, vector<size_t> > maxIS = MaxIndependentSet(TD, root);
-	for (size_t k = 0; k < maxIS.first.size(); ++k) {
+	/*for (size_t k = 0; k < maxIS.first.size(); ++k) {
 		cout << "IS size: " << maxIS.second[k] << endl;
 		for (size_t s : maxIS.first[k]) {
 			cout << s << " ";
 		}
 		cout << endl;
+	}*/
+	unordered_set<size_t> bestSet;
+	for (size_t k = 0; k < maxIS.first.size(); ++k) {
+		if (bestSet.size() < maxIS.first[k].size()) {
+			bestSet = maxIS.first[k];
+		}
 	}
-	
+	ofstream ofs(filepath + "..\\output\\" + filename + "_out.txt");
+
+	size_t count = 0;
+	ofs << "Max IS size: " << bestSet.size() << endl;
+	for (size_t i : bestSet) {
+		ofs << i << " ";
+		if (++count % 10 == 0) {
+			ofs << endl;
+		}
+	}
 
     return 0;
 }
